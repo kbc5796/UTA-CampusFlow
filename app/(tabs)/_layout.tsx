@@ -1,19 +1,34 @@
-// _layout.tsx — UTA-branded tab navigator with auth gate
+// _layout.tsx — UTA-branded tab navigator with auth gate (Firebase reactive)
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { UTA } from '@/constants/theme';
 import { Tabs } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import AuthScreen from '../AuthScreen';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../../firebase/firebase';
 
 export default function TabLayout() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  if (!isLoggedIn) {
-    return <AuthScreen onAuthSuccess={() => setIsLoggedIn(true)} />;
-  }
+  // Listen to Firebase auth state
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, []);
 
+  // While checking auth state, show nothing or a splash
+  if (loading) return null;
+
+  // If not logged in, show auth screen
+  if (!user) return <AuthScreen />;
+
+  // User is logged in, show main tab navigator
   return (
     <Tabs
       screenOptions={{
