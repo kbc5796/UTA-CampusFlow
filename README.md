@@ -1,50 +1,55 @@
-# Welcome to your Expo app 👋
+## Get started with UTA CampusFlow
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Follow these steps to run the app on your computer or phone. No coding experience required!
 
-## Get started
+### 1. Install Node.js
 
-1. Install dependencies
+If you don’t already have it, download and install **Node.js** (this is required to run the app):
 
-   ```bash
-   npm install
-   ```
+- [Download Node.js](https://nodejs.org/)  
+  Choose the LTS version and follow the installer instructions for your computer.
 
-2. Start the app
+### 2. Download this project
 
-   ```bash
-   npx expo start
-   ```
+You can download this project as a ZIP file from GitHub and extract it to a folder on your computer.
 
-In the output, you'll find options to open the app in a
+### 3. Open a terminal/command prompt
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- **Windows:** Press `Win + R`, type `cmd`, and press Enter  
+- **Mac:** Open “Terminal” from your Applications folder
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+Then, navigate to the folder where you saved the project using the `cd` command. For example:
 
 ```bash
-npm run reset-project
-```
+cd path/to/UTA-CampusFlow
+### 4. Install dependencies
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Type this command and press Enter:
 
-## Learn more
+npm install
 
-To learn more about developing your project with Expo, look at the following resources:
+This will install everything the app needs to run.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### 5. Start the app
 
-## Join the community
+Once dependencies are installed, start the app by typing:
 
-Join our community of developers creating universal apps.
+npx expo start
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+This will open a window with options to run the app:
+
+On your phone: Scan the QR code with the Expo Go app (available for iOS and Android)
+
+On your computer: Open in an Android emulator or iOS simulator if you have them installed
+
+### 6. Try the app
+
+You can log in with your UTA email (ending with @mavs.uta.edu)
+
+Or continue as a guest to explore features without signing in
+
+The app will show real-time campus reports, noise levels, and crowd information.
+
+7. Stop the app
+
+To stop the app, press Ctrl + C in the terminal.
