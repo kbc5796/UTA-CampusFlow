@@ -1,4 +1,4 @@
-// app/(tabs)/map.tsx — Campus Heat Map with Reporting FAB
+// app/(tabs)/map.tsx — Campus Heat Map with toggle
 import {
   addDoc,
   collection,
@@ -26,6 +26,7 @@ import {
 } from "react-native";
 import { UTA } from "../../constants/theme";
 import { auth, db } from "../../firebase/firebase";
+import MapView, { PROVIDER_GOOGLE, Heatmap, Marker } from "react-native-maps";
 
 // ── Campus locations with markers ──
 const campusLocations = [
@@ -44,6 +45,14 @@ const campusLocations = [
   { id: "commons", label: "The Commons", short: "COM", row: 4, col: 0, type: "dining" },
   { id: "college-park-center", label: "College Park Center", short: "CPC", row: 4, col: 1, type: "student" },
   { id: "smart-hospital", label: "SMART Hospital", short: "SMRT", row: 4, col: 2, type: "academic" },
+];
+
+const campusMarkers = [
+  { id: "uc", title: "University Center (UC)", description: "Hub for dining, events, and student organizations.", coordinate: { latitude: 32.7303, longitude: -97.1122 } },
+  { id: "lib", title: "Central Library", description: "Main campus library and study space.", coordinate: { latitude: 32.7291, longitude: -97.1143 } },
+  { id: "mac", title: "Maverick Activity Center (MAC)", description: "Campus recreation and fitness center.", coordinate: { latitude: 32.7335, longitude: -97.1147 } },
+  { id: "com", title: "The Commons", description: "Dining hall and student gathering space.", coordinate: { latitude: 32.73, longitude: -97.1165 } },
+  { id: "planetarium", title: "Planetarium", description: "State-of-the-art planetarium at UTA.", coordinate: { latitude: 32.7305, longitude: -97.1135 } },
 ];
 
 const locationLabels = campusLocations.map((l) => l.label);
@@ -92,7 +101,7 @@ function timeBasedEstimate(): CrowdLevel {
   return "low";
 }
 
-// ── Pulsing dot component ──
+// Pulsing dot component
 function PulsingDot({ color }: { color: string }) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   useEffect(() => {
@@ -128,7 +137,10 @@ export default function MapScreen() {
   const [reportNoise, setReportNoise] = useState("");
   const [cooldownMins, setCooldownMins] = useState(0);
 
-  // Cooldown timer
+  // NEW: toggle for bottom heatmap
+  const [showHeatmap, setShowHeatmap] = useState(false);
+
+  // ── Cooldown timer
   useEffect(() => {
     if (!user || isGuest) return;
     const interval = setInterval(async () => {
@@ -141,21 +153,8 @@ export default function MapScreen() {
             setCooldownMins(diff > 0 ? Math.ceil(diff / 60000) : 0);
           } else { setCooldownMins(0); }
         }
-      } catch { /* ignore */ }
+      } catch { }
     }, 15000);
-    // Initial check
-    (async () => {
-      try {
-        const snap = await getDoc(doc(db, "users", user!.uid));
-        if (snap.exists()) {
-          const last = snap.data().lastReportTime?.toDate();
-          if (last) {
-            const diff = 30 * 60 * 1000 - (Date.now() - last.getTime());
-            setCooldownMins(diff > 0 ? Math.ceil(diff / 60000) : 0);
-          }
-        }
-      } catch { /* ignore */ }
-    })();
     return () => clearInterval(interval);
   }, [user]);
 
@@ -255,17 +254,13 @@ export default function MapScreen() {
   return (
     <View style={s.root}>
       <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
+        {/* Title & Subtitle */}
         <Text style={s.title}>Campus Heat Map</Text>
         <Text style={s.subtitle}>Real-time crowd & noise from student reports</Text>
 
         {/* Legend */}
         <View style={s.legend}>
-          {[
-            { color: UTA.gray200, label: "No Data" },
-            { color: UTA.green, label: "Quiet" },
-            { color: UTA.yellow, label: "Moderate" },
-            { color: UTA.red, label: "Busy/Loud" },
-          ].map((item) => (
+          {[{ color: UTA.gray200, label: "No Data" }, { color: UTA.green, label: "Quiet" }, { color: UTA.yellow, label: "Moderate" }, { color: UTA.red, label: "Busy/Loud" }].map((item) => (
             <View key={item.label} style={s.legendItem}>
               <View style={[s.legendDot, { backgroundColor: item.color }]} />
               <Text style={s.legendText}>{item.label}</Text>
@@ -276,11 +271,7 @@ export default function MapScreen() {
         {/* Filter */}
         <View style={s.filterRow}>
           {(["all", "academic", "student", "dining"] as const).map((f) => (
-            <TouchableOpacity
-              key={f}
-              style={[s.filterTab, filter === f && s.filterTabActive]}
-              onPress={() => setFilter(f)}
-            >
+            <TouchableOpacity key={f} style={[s.filterTab, filter === f && s.filterTabActive]} onPress={() => setFilter(f)}>
               <Text style={[s.filterText, filter === f && s.filterTextActive]}>
                 {f === "all" ? "All" : f === "academic" ? "Academic" : f === "student" ? "Student" : "Dining"}
               </Text>
@@ -306,15 +297,10 @@ export default function MapScreen() {
                     onPress={() => setSelectedLocation(isSelected ? null : loc.id)}
                     activeOpacity={0.6}
                   >
-                    {/* Pulsing overlay for high-activity */}
                     {level === "high" && <PulsingDot color={UTA.red} />}
                     <Text style={s.cellShort}>{loc.short}</Text>
                     <Text style={s.cellLabel}>{crowdLabel(level)}</Text>
-                    {data && (
-                      <Text style={s.cellReports}>
-                        {data.reportCount} report{data.reportCount !== 1 ? "s" : ""}
-                      </Text>
-                    )}
+                    {data && <Text style={s.cellReports}>{data.reportCount} report{data.reportCount !== 1 ? "s" : ""}</Text>}
                   </TouchableOpacity>
                 );
               })}
@@ -322,7 +308,7 @@ export default function MapScreen() {
           ))}
         </View>
 
-        {/* Selected Location Detail */}
+        {/* Selected Location Details */}
         {selected && (
           <View style={s.detailCard}>
             <Text style={s.detailTitle}>{selected.label}</Text>
@@ -344,18 +330,12 @@ export default function MapScreen() {
                 </View>
               </>
             )}
-
-            {/* Library Floor Toggle */}
             {(selected as any).hasFloors && (
               <View style={s.floorSection}>
                 <Text style={s.floorLabel}>Floor:</Text>
                 <View style={s.floorRow}>
                   {(selected as any).floors.map((f: number) => (
-                    <TouchableOpacity
-                      key={f}
-                      style={[s.floorBtn, libraryFloor === f && s.floorBtnActive]}
-                      onPress={() => setLibraryFloor(f)}
-                    >
+                    <TouchableOpacity key={f} style={[s.floorBtn, libraryFloor === f && s.floorBtnActive]} onPress={() => setLibraryFloor(f)}>
                       <Text style={[s.floorBtnText, libraryFloor === f && s.floorBtnTextActive]}>{f}</Text>
                     </TouchableOpacity>
                   ))}
@@ -363,290 +343,96 @@ export default function MapScreen() {
                 <Text style={s.floorNote}>Floor {libraryFloor} data shown (from crowd reports mentioning this floor)</Text>
               </View>
             )}
-
-            {!selectedData && (
-              <Text style={s.detailNote}>
-                No recent reports — showing estimate. Tap the + button to contribute!
-              </Text>
-            )}
+            {!selectedData && <Text style={s.detailNote}>No recent reports — showing estimate. Tap the map for live updates!</Text>}
           </View>
         )}
 
-        {/* Summary */}
-        <View style={s.summaryCard}>
-          <Text style={s.sectionTitle}>📈 Campus-Wide Summary</Text>
-          <View style={s.summaryGrid}>
-            {(["low", "medium", "high", "unknown"] as CrowdLevel[]).map((level) => {
-              const count = campusLocations.filter((l) => {
-                const d = crowdMap[l.id];
-                return d ? d.level === level : level === "unknown";
-              }).length;
-              return (
-                <View key={level} style={s.summaryItem}>
-                  <View style={[s.summaryDot, { backgroundColor: crowdToColor(level) }]} />
-                  <Text style={s.summaryCount}>{count}</Text>
-                  <Text style={s.summaryLabel}>{crowdLabel(level)}</Text>
-                </View>
-              );
-            })}
-          </View>
-          <Text style={s.summaryNote}>
-            Data refreshes in real-time. Tap + to submit a report!
-          </Text>
-        </View>
+        {/* TOGGLE Button for full Campus Heatmap */}
+        <TouchableOpacity
+          style={s.heatmapToggle}
+          onPress={() => setShowHeatmap(!showHeatmap)}
+        >
+          <Text style={s.heatmapToggleText}>{showHeatmap ? "Hide Campus Heatmap" : "View Campus Heatmap"}</Text>
+        </TouchableOpacity>
 
-        {/* Cooldown indicator */}
-        {cooldownMins > 0 && (
-          <View style={s.cooldownBanner}>
-            <Text style={s.cooldownText}>⏳ Report cooldown: {cooldownMins} min remaining</Text>
+        {/* Full Heatmap Map */}
+        {showHeatmap && (
+          <View style={s.fullMapContainer}>
+            <MapView
+              provider={PROVIDER_GOOGLE}
+              style={{ flex: 1 }}
+              initialRegion={{
+                latitude: 32.7303,
+                longitude: -97.1140,
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
+              }}
+            >
+              <Heatmap
+                points={campusMarkers.map((loc) => ({
+                  latitude: loc.coordinate.latitude,
+                  longitude: loc.coordinate.longitude,
+                  weight: (crowdMap[loc.id]?.reportCount || 0) + 1,
+                }))}
+                radius={100}
+                opacity={0.7}
+                gradient={{ colors: ["#00ff00", "#ffff00", "#ff0000"], startPoints: [0.1, 0.5, 1], colorMapSize: 256 }}
+              />
+              {campusMarkers.map((loc) => (
+                <Marker
+                  key={loc.id}
+                  coordinate={{ latitude: loc.coordinate.latitude, longitude: loc.coordinate.longitude }}
+                  title={loc.title}
+                  description={loc.description}
+                />
+              ))}
+            </MapView>
           </View>
         )}
       </ScrollView>
-
-      {/* ── FAB (Floating Action Button) ── */}
-      <TouchableOpacity
-        style={s.fab}
-        onPress={() => {
-          if (isGuest || !user) {
-            Alert.alert("Sign In Required", "Only registered users can submit reports.");
-            return;
-          }
-          if (cooldownMins > 0) {
-            Alert.alert("Cooldown Active", `Wait ${cooldownMins} more minutes before reporting again.`);
-            return;
-          }
-          setReportStep(0);
-          setReportLocation("");
-          setReportCrowd("");
-          setReportNoise("");
-          setFabOpen(true);
-        }}
-        activeOpacity={0.8}
-      >
-        <Text style={s.fabIcon}>+</Text>
-      </TouchableOpacity>
-
-      {/* ── 3-Step Report Modal ── */}
-      <Modal visible={fabOpen} animationType="slide" transparent>
-        <View style={s.modalOverlay}>
-          <View style={s.modalContent}>
-            {/* Stepper */}
-            <View style={s.stepper}>
-              {["Location", "Crowd", "Noise"].map((label, i) => (
-                <View key={label} style={s.stepItem}>
-                  <View style={[s.stepCircle, reportStep >= i && s.stepCircleActive]}>
-                    <Text style={[s.stepNum, reportStep >= i && s.stepNumActive]}>{i + 1}</Text>
-                  </View>
-                  <Text style={[s.stepLabel, reportStep >= i && s.stepLabelActive]}>{label}</Text>
-                </View>
-              ))}
-            </View>
-
-            {/* Step 0: Select Location */}
-            {reportStep === 0 && (
-              <View>
-                <Text style={s.modalTitle}>Select Location</Text>
-                <ScrollView style={s.optionScroll} showsVerticalScrollIndicator={false}>
-                  {locationLabels.map((loc) => (
-                    <TouchableOpacity
-                      key={loc}
-                      style={[s.optionBtn, reportLocation === loc && s.optionBtnActive]}
-                      onPress={() => { setReportLocation(loc); setReportStep(1); }}
-                    >
-                      <Text style={[s.optionText, reportLocation === loc && s.optionTextActive]}>{loc}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-
-            {/* Step 1: Crowd Level */}
-            {reportStep === 1 && (
-              <View>
-                <Text style={s.modalTitle}>Crowd Level</Text>
-                <Text style={s.modalSub}>How busy is {reportLocation}?</Text>
-                {crowdOptions.map((opt) => (
-                  <TouchableOpacity
-                    key={opt}
-                    style={[s.optionBtn, reportCrowd === opt && s.optionBtnActive]}
-                    onPress={() => { setReportCrowd(opt); setReportStep(2); }}
-                  >
-                    <Text style={[s.optionText, reportCrowd === opt && s.optionTextActive]}>
-                      {opt === "Low" ? "🟢" : opt === "Medium" ? "🟡" : "🔴"} {opt}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-                <TouchableOpacity style={s.backBtn} onPress={() => setReportStep(0)}>
-                  <Text style={s.backBtnText}>← Back</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Step 2: Noise Level */}
-            {reportStep === 2 && (
-              <View>
-                <Text style={s.modalTitle}>Noise Level</Text>
-                <Text style={s.modalSub}>How noisy is {reportLocation}?</Text>
-                {noiseOptions.map((opt) => (
-                  <TouchableOpacity
-                    key={opt}
-                    style={[s.optionBtn, reportNoise === opt && s.optionBtnActive]}
-                    onPress={() => setReportNoise(opt)}
-                  >
-                    <Text style={[s.optionText, reportNoise === opt && s.optionTextActive]}>
-                      {opt === "Quiet" ? "🤫" : opt === "Moderate" ? "🗣️" : "📢"} {opt}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-                {reportNoise !== "" && (
-                  <TouchableOpacity style={s.submitBtn} onPress={submitReport}>
-                    <Text style={s.submitBtnText}>Submit Report</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity style={s.backBtn} onPress={() => setReportStep(1)}>
-                  <Text style={s.backBtnText}>← Back</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Close */}
-            <TouchableOpacity style={s.closeBtn} onPress={() => setFabOpen(false)}>
-              <Text style={s.closeBtnText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: UTA.offWhite },
-  container: { padding: 16, paddingTop: 48, paddingBottom: 100 },
-  title: { fontSize: 24, fontWeight: "bold", textAlign: "center", color: UTA.royalBlue },
-  subtitle: { fontSize: 13, color: UTA.gray500, textAlign: "center", marginBottom: 14 },
-
-  // Legend
-  legend: { flexDirection: "row", justifyContent: "center", marginBottom: 10, gap: 14 },
+  root: { flex: 1, backgroundColor: "#f9f9f9" },
+  container: { padding: 16 },
+  title: { fontSize: 28, fontWeight: "bold", marginBottom: 4 },
+  subtitle: { fontSize: 14, color: "#555", marginBottom: 16 },
+  legend: { flexDirection: "row", justifyContent: "space-around", marginBottom: 16 },
   legendItem: { flexDirection: "row", alignItems: "center" },
-  legendDot: { width: 11, height: 11, borderRadius: 6, marginRight: 4 },
-  legendText: { fontSize: 11, color: UTA.gray600 },
-
-  // Filter
-  filterRow: { flexDirection: "row", justifyContent: "center", marginBottom: 14, gap: 6 },
-  filterTab: { paddingHorizontal: 14, paddingVertical: 6, backgroundColor: UTA.gray100, borderRadius: 20 },
+  legendDot: { width: 12, height: 12, borderRadius: 6, marginRight: 6 },
+  legendText: { fontSize: 12 },
+  filterRow: { flexDirection: "row", marginBottom: 16, justifyContent: "space-between" },
+  filterTab: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, backgroundColor: "#eee" },
   filterTabActive: { backgroundColor: UTA.royalBlue },
-  filterText: { fontSize: 12, color: UTA.gray600, fontWeight: "600" },
+  filterText: { fontSize: 12 },
   filterTextActive: { color: "#fff" },
-
-  // Grid
-  gridContainer: { marginBottom: 14 },
-  gridRow: { flexDirection: "row", justifyContent: "center", marginBottom: 8, gap: 8 },
-  gridCell: {
-    width: 108, height: 92, borderRadius: 14, justifyContent: "center", alignItems: "center", padding: 6,
-    shadowColor: "#000", shadowOpacity: 0.08, shadowOffset: { width: 0, height: 2 }, shadowRadius: 4, elevation: 2,
-  },
-  gridCellSelected: { borderWidth: 3, borderColor: UTA.royalBlue },
-  cellShort: { fontSize: 17, fontWeight: "bold", color: "#fff", zIndex: 2 },
-  cellLabel: { fontSize: 10, color: "#fff", fontWeight: "600", marginTop: 2, zIndex: 2 },
-  cellReports: { fontSize: 9, color: "rgba(255,255,255,0.85)", marginTop: 1, zIndex: 2 },
-
-  // Pulsing dot
-  pulseWrapper: { position: "absolute", top: 6, right: 6, width: 14, height: 14, alignItems: "center", justifyContent: "center" },
-  pulseRing: { position: "absolute", width: 14, height: 14, borderRadius: 7 },
-  pulseDot: { width: 6, height: 6, borderRadius: 3 },
-
-  // Detail
-  detailCard: {
-    backgroundColor: "#fff", borderRadius: 14, padding: 16, marginBottom: 14,
-    shadowColor: "#000", shadowOpacity: 0.06, shadowOffset: { width: 0, height: 2 }, shadowRadius: 4, elevation: 2,
-  },
-  detailTitle: { fontSize: 17, fontWeight: "bold", color: UTA.royalBlue, marginBottom: 10 },
-  detailRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
-  detailKey: { fontSize: 13, color: UTA.gray500 },
-  detailValue: { fontSize: 13, fontWeight: "bold" },
-  detailNote: { fontSize: 12, color: UTA.gray400, fontStyle: "italic", marginTop: 6 },
-
-  // Library floor toggle
-  floorSection: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: UTA.gray100 },
-  floorLabel: { fontSize: 13, fontWeight: "600", color: UTA.gray600, marginBottom: 6 },
-  floorRow: { flexDirection: "row", gap: 8, marginBottom: 6 },
-  floorBtn: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: UTA.gray100,
-    justifyContent: "center", alignItems: "center",
-  },
+  gridContainer: { marginBottom: 16 },
+  gridRow: { flexDirection: "row", marginBottom: 8 },
+  gridCell: { flex: 1, marginHorizontal: 4, padding: 6, borderRadius: 8, alignItems: "center" },
+  gridCellSelected: { borderWidth: 2, borderColor: UTA.royalBlue },
+  cellShort: { fontWeight: "bold" },
+  cellLabel: { fontSize: 10 },
+  cellReports: { fontSize: 10, color: "#333" },
+  pulseWrapper: { position: "absolute", top: 6, left: 6 },
+  pulseRing: { width: 12, height: 12, borderRadius: 6, position: "absolute" },
+  pulseDot: { width: 12, height: 12, borderRadius: 6 },
+  detailCard: { backgroundColor: "#fff", padding: 12, borderRadius: 12, marginBottom: 16, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+  detailTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 6 },
+  detailRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
+  detailKey: { fontWeight: "600" },
+  detailValue: { fontWeight: "600" },
+  floorSection: { marginTop: 8 },
+  floorLabel: { fontSize: 12, fontWeight: "600", marginBottom: 4 },
+  floorRow: { flexDirection: "row" },
+  floorBtn: { padding: 6, borderRadius: 6, backgroundColor: "#eee", marginRight: 4 },
   floorBtnActive: { backgroundColor: UTA.royalBlue },
-  floorBtnText: { fontSize: 14, fontWeight: "bold", color: UTA.gray600 },
+  floorBtnText: { fontSize: 12 },
   floorBtnTextActive: { color: "#fff" },
-  floorNote: { fontSize: 11, color: UTA.gray400, fontStyle: "italic" },
-
-  // Summary
-  summaryCard: {
-    backgroundColor: "#fff", borderRadius: 14, padding: 16,
-    shadowColor: "#000", shadowOpacity: 0.06, shadowOffset: { width: 0, height: 2 }, shadowRadius: 4, elevation: 2,
-  },
-  sectionTitle: { fontSize: 16, fontWeight: "bold", marginBottom: 10, color: UTA.gray800 },
-  summaryGrid: { flexDirection: "row", justifyContent: "space-around", marginBottom: 10 },
-  summaryItem: { alignItems: "center" },
-  summaryDot: { width: 14, height: 14, borderRadius: 7, marginBottom: 3 },
-  summaryCount: { fontSize: 18, fontWeight: "bold", color: UTA.gray800 },
-  summaryLabel: { fontSize: 10, color: UTA.gray400 },
-  summaryNote: { fontSize: 11, color: UTA.gray400, textAlign: "center" },
-
-  // Cooldown
-  cooldownBanner: {
-    marginTop: 12, backgroundColor: UTA.blazeOrange + "18", borderRadius: 10,
-    padding: 12, borderLeftWidth: 4, borderLeftColor: UTA.blazeOrange,
-  },
-  cooldownText: { fontSize: 13, color: UTA.blazeOrange, fontWeight: "600" },
-
-  // FAB
-  fab: {
-    position: "absolute", bottom: 28, right: 20,
-    width: 60, height: 60, borderRadius: 30,
-    backgroundColor: UTA.blazeOrange, justifyContent: "center", alignItems: "center",
-    shadowColor: UTA.blazeOrange, shadowOpacity: 0.4, shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 10, elevation: 6,
-  },
-  fabIcon: { fontSize: 32, color: "#fff", fontWeight: "bold", marginTop: -2 },
-
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  modalContent: {
-    backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 24, paddingBottom: 40, maxHeight: "80%",
-  },
-  stepper: { flexDirection: "row", justifyContent: "center", gap: 24, marginBottom: 20 },
-  stepItem: { alignItems: "center" },
-  stepCircle: {
-    width: 32, height: 32, borderRadius: 16, backgroundColor: UTA.gray200,
-    justifyContent: "center", alignItems: "center", marginBottom: 4,
-  },
-  stepCircleActive: { backgroundColor: UTA.royalBlue },
-  stepNum: { fontSize: 14, fontWeight: "bold", color: UTA.gray400 },
-  stepNumActive: { color: "#fff" },
-  stepLabel: { fontSize: 11, color: UTA.gray400 },
-  stepLabelActive: { color: UTA.royalBlue, fontWeight: "600" },
-
-  modalTitle: { fontSize: 20, fontWeight: "bold", color: UTA.gray800, marginBottom: 6 },
-  modalSub: { fontSize: 13, color: UTA.gray500, marginBottom: 14 },
-  optionScroll: { maxHeight: 280 },
-  optionBtn: {
-    paddingVertical: 14, paddingHorizontal: 16, backgroundColor: UTA.gray100,
-    borderRadius: 12, marginBottom: 8,
-  },
-  optionBtnActive: { backgroundColor: UTA.royalBlue },
-  optionText: { fontSize: 15, color: UTA.gray800, fontWeight: "500" },
-  optionTextActive: { color: "#fff" },
-
-  submitBtn: {
-    marginTop: 14, backgroundColor: UTA.blazeOrange, borderRadius: 12,
-    paddingVertical: 14, alignItems: "center",
-    shadowColor: UTA.blazeOrange, shadowOpacity: 0.3, shadowOffset: { width: 0, height: 3 }, shadowRadius: 6, elevation: 3,
-  },
-  submitBtnText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
-  backBtn: { marginTop: 10, paddingVertical: 6 },
-  backBtnText: { color: UTA.royalBlue, fontSize: 14, fontWeight: "600" },
-  closeBtn: { marginTop: 14, alignItems: "center", paddingVertical: 8 },
-  closeBtnText: { color: UTA.gray400, fontSize: 14, fontWeight: "600" },
+  floorNote: { fontSize: 10, color: "#666", marginTop: 4 },
+  detailNote: { fontSize: 12, color: "#888", marginTop: 4 },
+  heatmapToggle: { backgroundColor: UTA.royalBlue, paddingVertical: 12, borderRadius: 12, alignItems: "center", marginVertical: 12 },
+  heatmapToggleText: { color: "#fff", fontWeight: "bold" },
+  fullMapContainer: { height: 400, borderRadius: 14, overflow: "hidden", marginBottom: 16 },
 });

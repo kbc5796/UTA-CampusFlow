@@ -55,7 +55,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
       setUnverifiedUser(null);
       if (onAuthSuccess) onAuthSuccess();
-      else router.replace("../app/index");
+      else router.replace("/");
     } catch (err: any) {
       console.error(err);
       Alert.alert("Login Failed", err.message || "Unknown error occurred");
@@ -72,7 +72,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       console.log("Logged in as guest:", userCredential.user.uid);
 
       if (onAuthSuccess) onAuthSuccess();
-      else router.replace("../app/index");
+      else router.replace("/");
     } catch (err: any) {
       console.error(err);
       Alert.alert("Login Failed", err.message || JSON.stringify(err));
