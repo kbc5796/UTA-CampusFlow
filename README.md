@@ -20,7 +20,6 @@ You can download this project as a ZIP file from GitHub and extract it to a fold
 
 Then, navigate to the folder where you saved the project using the `cd` command. For example:
 
-```bash
 cd path/to/UTA-CampusFlow
 ### 4. Install dependencies
 
@@ -50,6 +49,6 @@ Or continue as a guest to explore features without signing in
 
 The app will show real-time campus reports, noise levels, and crowd information.
 
-7. Stop the app
+### 7. Stop the app
 
 To stop the app, press Ctrl + C in the terminal.
